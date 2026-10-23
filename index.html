@@ -67,6 +67,7 @@
 
     <div id="result">
         <img id="structure">
+        <a id="sdsLink" target="blank"></a>
         <div id="info">
             <p id="formula"></p>
             <p id="weight"></p>
@@ -145,7 +146,7 @@
                 if (claims.P662) {
                     return {
                         cid: claims.P662[0].mainsnak.datavalue.value,
-                        cas: claims.P231 ? claims.P231[0].mainsnak.datavalue : null
+                        cas: claims.P231 ? claims.P231[0].mainsnak.datavalue.value : null
                     };
                 }
             }
@@ -157,13 +158,25 @@
             document.getElementById("structure").src = "";
             document.getElementById("pictograms").innerHTML = "";
             document.getElementById("hazards").innerHTML = "";
+            document.getElementById("sdsLink").textContent = "";
+            document.getElementById("sdsLink").removeAttribute("href");
 
-            const cid = await findCid(name);
-            if (cid === null) {
+            const result = await findCid(name);
+            if (result === null) {
                 document.getElementById("formula").textContent = "見つかりませんでした";
                 document.getElementById("weight").textContent = "";
                 document.getElementById("structure").src = "";
                 return;
+            }
+            const cid = result.cid;
+            const cas = result.cas;
+            const link = document.getElementById("sdsLink");
+            if (cas) {
+                link.href = `https://anzeninfo.mhlw.go.jp/anzen/gmsds/${cas}.html`;
+                link.textContent = "SDS情報を表示";
+            } else {
+                link.removeAttribute("href");
+                link.textContent = "SDS情報はありません";
             }
             const url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/property/MolecularFormula,MolecularWeight,IUPACName/JSON`;
 
@@ -181,7 +194,7 @@
             document.getElementById("formula").textContent = "分子式" + compound.MolecularFormula;
             document.getElementById("weight").textContent = "分子量" + compound.MolecularWeight;
             document.getElementById("structure").src =
-                `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${compound.CID}/PNG`;
+                `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${compound.CID}/PNG?image_size=large`;
             await showGhs(cid);
         }
         async function showGhs(cid) {
