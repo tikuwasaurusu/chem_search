@@ -143,7 +143,10 @@
             for (const item of searchData.search) {
                 const claims = entityData.entities[item.id].claims;
                 if (claims.P662) {
-                    return claims.P662[0].mainsnak.datavalue.value;
+                    return {
+                        cid: claims.P662[0].mainsnak.datavalue.value,
+                        cas: claims.P231 ? claims.P231[0].mainsnak.datavalue : null
+                    };
                 }
             }
             return null
