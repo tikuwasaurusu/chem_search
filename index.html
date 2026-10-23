@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>化合物検索</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 16px;
+            background-color: #eef4fb;
+        }
+
+        h1 {
+            text-align: center;
+            color: #1a3d6d;
+        }
+
+        input {
+            width: 70%;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px 16px;
+            font-size: 16px;
+            background-color: #1e6fd9 color: white;
+            border: none;
+            border-radius: 6px;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+        }
+
+        #structure {
+            display: block;
+            margin: 16px auto;
+            background-color: white;
+            border-radius: 8px;
+        }
+
+        #pictograms {
+            text-align: center;
+        }
+
+        #result {
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+
+            #structure[src=""],
+            #structure:not([src]) {
+                display: none;
+            }
+    </style>
+</head>
+
+<body>
+    <h1>化合物検索</h1>
+    <input id="nameInput" placeholder="入力">
+    <button id="searchButton">検索</button>
+
+    <div id="result">
+        <img id="structure">
+        <div id="info">
+            <p id="formula"></p>
+            <p id="weight"></p>
+            <div id="pictograms"></div>
+            <ul id="hazards"></ul>
+        </div>
+    </div>
+    <script>
+        const hCodeTable = {
+            "H200": "不安定爆発物",
+            "H220": "極めて可燃性の高いガス",
+            "H224": "極めて引火性の高い液体及び蒸気",
+            "H225": "引火性の高い液体及び蒸気",
+            "H226": "引火性の液体及び蒸気",
+            "H227": "可燃性液体",
+            "H228": "可燃性固体",
+            "H250": "空気に触れると自然発火",
+            "H260": "水に触れると自然発火するおそれのある可燃性ガスを発生",
+            "H261": "水に触れると可燃性ガスを発生",
+            "H270": "発火又は火災助長のおそれ:酸化性物質",
+            "H271": "火災又は爆発のおそれ:強酸化性物質",
+            "H272": "火災助長のおそれ:酸化性物質",
+            "H280": "高圧ガス；熱すると爆発のおそれ",
+            "H281": "深冷液化ガス；凍傷または傷害のおそれ ",
+            "H290": "金属腐食のおそれ",
+            "H300": "飲み込むと生命に危険",
+            "H301": "飲み込むと有毒",
+            "H302": "飲み込むと有害",
+            "H304": "飲み込んで気道に侵入すると生命に危険のおそれ",
+            "H305": "飲み込んで気道に侵入すると有害のおそれ",
+            "H310": "皮膚に接触すると生命に危険",
+            "H311": "皮膚に接触すると有毒",
+            "H312": "皮膚に接触すると有害",
+            "H314": "重篤な皮膚の薬傷及び眼の損傷",
+            "H315": "皮膚刺激",
+            "H317": "アレルギー性皮膚反応を起こすおそれ",
+            "H318": "重篤な眼の損傷",
+            "H319": "強い眼刺激",
+            "H320": "眼刺激",
+            "H330": "吸入すると生命に危険",
+            "H331": "吸入すると有毒",
+            "H332": "吸入すると有害",
+            "H334": "吸入するとアレルギー、喘息又は呼吸困難を起こすおそれ",
+            "H335": "呼吸器への刺激のおそれ",
+            "H336": "眠気又はめまいのおそれ",
+            "H340": "遺伝性疾患のおそれ",
+            "H341": "遺伝性疾患のおそれの疑い",
+            "H350": "発がんのおそれ",
+            "H351": "発がんのおそれの疑い",
+            "H360": "生殖能又は胎児への悪影響のおそれ",
+            "H361": "生殖能又は胎児への悪影響のおそれの疑い",
+            "H370": "臓器の障害",
+            "H371": "臓器の障害のおそれ",
+            "H372": "長期にわたる、又は反復ばく露による臓器の障害",
+            "H373": "長期にわたる、又は反復ばく露による臓器の障害のおそれ",
+            "H400": "水生生物に非常に強い毒性",
+            "H410": "長期継続的影響によって水生生物に非常に強い毒性",
+            "H411": "長期継続的影響によって水生生物に毒性",
+            "H412": "長期継続的影響によって水生生物に有害"
+        };
+        async function findCid(name) {
+            //日本語名で検索
+            const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(name)}&language=ja&uselang=ja&type=item&limit=5&format=json&origin=*`;
+            const searchResponse = await fetch(searchUrl);
+            const searchData = await searchResponse.json();
+
+            if (searchData.search.length === 0) {
+                return null
+            }
+            const ids = searchData.search.map(item => item.id).join("|");
+            const entityUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${ids}&props=claims&format=json&origin=*`;
+            const entityResponse = await fetch(entityUrl);
+            const entityData = await entityResponse.json();
+            for (const item of searchData.search) {
+                const claims = entityData.entities[item.id].claims;
+                if (claims.P662) {
+                    return claims.P662[0].mainsnak.datavalue.value;
+                }
+            }
+            return null
+        }
+        async function searchCompound(name) {
+            document.getElementById("formula").textContent = "検索中...";
+            document.getElementById("weight").textContent = "";
+            document.getElementById("structure").src = "";
+            document.getElementById("pictograms").innerHTML = "";
+            document.getElementById("hazards").innerHTML = "";
+
+            const cid = await findCid(name);
+            if (cid === null) {
+                document.getElementById("formula").textContent = "見つかりませんでした";
+                document.getElementById("weight").textContent = "";
+                document.getElementById("structure").src = "";
+                return;
+            }
+            const url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/property/MolecularFormula,MolecularWeight,IUPACName/JSON`;
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                document.getElementById("formula").textContent = "見つかりませんでした";
+                document.getElementById("weight").textContent = "";
+                document.getElementById("structure").src = "";
+                return;
+            }
+            const data = await response.json();
+
+            const compound = data.PropertyTable.Properties[0];
+
+            document.getElementById("formula").textContent = "分子式" + compound.MolecularFormula;
+            document.getElementById("weight").textContent = "分子量" + compound.MolecularWeight;
+            document.getElementById("structure").src =
+                `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${compound.CID}/PNG`;
+            await showGhs(cid);
+        }
+        async function showGhs(cid) {
+            const area = document.getElementById("pictograms");
+            area.innerHTML = "";
+
+            const url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/data/compound/${cid}/JSON?heading=GHS+Classification`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                area.textContent = "GHS分類の情報はありません";
+                return;
+            }
+            const data = await response.json();
+
+            const infoList = data.Record.Section[0].Section[0].Section[0].Information;
+
+            const pictogramInfo = infoList.find(info => info.Name === "Pictogram(s)");
+            if (!pictogramInfo) {
+                area.textContent = "GHSマークはありません";
+                return;
+            }
+
+            const marks = pictogramInfo.Value.StringWithMarkup[0].Markup;
+            for (const mark of marks) {
+                const img = document.createElement("img");
+                img.src = mark.URL;
+                img.title = mark.Extra;
+                img.width = 80;
+                area.appendChild(img);
+            }
+            const hazardArea = document.getElementById("hazards");
+            hazardArea.innerHTML = "";
+
+            const hazardInfo = infoList.find(info => info.Name === "GHS Hazard Statements");
+
+
+            for (const statement of hazardInfo.Value.StringWithMarkup) {
+                const li = document.createElement("li");
+                const code = statement.String.slice(0, 4);
+                const japanese = hCodeTable[code];
+
+                if (japanese) {
+                    li.textContent = code + ": " + japanese;
+                } else {
+                    li.textContent = statement.String;
+                    console.log("未登録のHコード:", statement.String);
+                }
+
+                hazardArea.appendChild(li);
+            }
+        }
+
+        document.getElementById("searchButton").addEventListener("click", async function () {
+            const name = document.getElementById("nameInput").value;
+
+            document.getElementById("searchButton").disabled = true;
+            await searchCompound(name);
+            document.getElementById("searchButton").disabled = false;
+        });
+
+    </script>
+</body>
+
+</html>
