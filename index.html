@@ -3,15 +3,48 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>化合物検索</title>
+    <title>化学物質検索</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
             font-family: sans-serif;
-            max-width: 900px;
+            max-width: 1100px;
             margin: 0 auto;
             padding: 16px;
             background-color: #eef4fb;
+        }
+        #layout {
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+        }
+        #historyArea {
+            width: 180px;
+            flex-shrink: 0;
+            background-color: white;
+            border-radius: 8px;
+            padding: 12px;
+            position: sticky;
+            top: 16px;
+        }
+        #historyArea h2 {
+            font-size: 14px;
+            color: #1a3d6d;
+            margin: 0 0 8px;
+        }
+        #history li {
+            cursor: pointer;
+            color: #1e6fd9;
+            padding: 4px 6px;
+            border-radius: 4px;
+        }
+
+        #history li:hover {
+            background-color: #eef4fb;
+        }
+        
+        main {
+            flex: 1;
         }
 
         h1 {
@@ -57,23 +90,40 @@
             #structure:not([src]) {
                 display: none;
             }
+        }
+
+        #history li {
+            cursor: pointer;
+            color: #1e6fd9;
+        }
+
+        #history li:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 
 <body>
-    <h1>化合物検索</h1>
-    <input id="nameInput" placeholder="入力">
-    <button id="searchButton">検索</button>
-
-    <div id="result">
-        <img id="structure">
-        <a id="sdsLink" target="blank"></a>
-        <div id="info">
-            <p id="formula"></p>
-            <p id="weight"></p>
-            <div id="pictograms"></div>
-            <ul id="hazards"></ul>
-        </div>
+    <h1>化学物質検索</h1>
+    <div id="layout">
+        <aside id="historyArea">
+            <h2>最近の検索</h2>
+            <ul id="history"></ul>
+        </aside>
+        <main>
+            <input id="nameInput" placeholder="入力">
+            <button id="searchButton">検索</button>
+            <div id="result">
+                <img id="structure">
+                <a id="sdsLink" target="blank"></a>
+                <div id="info">
+                    <p id="formula"></p>
+                    <p id="weight"></p>
+                    <div id="pictograms"></div>
+                    <ul id="hazards"></ul>
+                </div>
+            </div>
+        </main>
     </div>
     <script>
         const hCodeTable = {
@@ -128,6 +178,37 @@
             "H411": "長期継続的影響によって水生生物に毒性",
             "H412": "長期継続的影響によって水生生物に有害"
         };
+        function loadHistory() {
+            const saved = localStorage.getItem("history");
+            if (saved === null) {
+                return [];
+            }
+            return JSON.parse(saved);
+        }
+
+        function saveHistory(name) {
+            let history = loadHistory();
+            history = history.filter(item => item !== name);
+            history.unshift(name);
+            history = history.slice(0, 10);
+            localStorage.setItem("history", JSON.stringify(history));
+        }
+        function showHistory() {
+            const historyList = document.getElementById("history");
+            historyList.innerHTML = "";
+
+            const history = loadHistory();
+            for (const name of history) {
+                const li = document.createElement("li");
+                li.textContent = name;
+                li.addEventListener("click", function () {
+                    document.getElementById("nameInput").value = name;
+                    document.getElementById("searchButton").click();
+                });
+                historyList.appendChild(li);
+            }
+        }
+
         async function findCid(name) {
             //日本語名で検索
             const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(name)}&language=ja&uselang=ja&type=item&limit=5&format=json&origin=*`;
@@ -170,6 +251,8 @@
             }
             const cid = result.cid;
             const cas = result.cas;
+            saveHistory(name);
+            showHistory();
             const link = document.getElementById("sdsLink");
             if (cas) {
                 link.href = `https://anzeninfo.mhlw.go.jp/anzen/gmsds/${cas}.html`;
@@ -254,7 +337,13 @@
             await searchCompound(name);
             document.getElementById("searchButton").disabled = false;
         });
+        document.getElementById("nameInput").addEventListener("keydown", function (event) {
+            if (event.key === "Enter" && !event.isComposing) {
+                document.getElementById("searchButton").click();
+            }
+        });
 
+        showHistory();
     </script>
 </body>
 
